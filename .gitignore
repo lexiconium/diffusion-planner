@@ -1,7 +1,8 @@
 __pycache__
-
 .idea
+*.ipynb
+
+original
 
 test*
-original
-*.ipynb
+run*

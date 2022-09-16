@@ -3,15 +3,14 @@ from typing import List, Union
 
 import torch
 from diffusers import DDIMScheduler, DDPMScheduler, LMSDiscreteScheduler, PNDMScheduler
+from diffusers.utils import BaseOutput
 from tqdm.auto import tqdm
-from transformers.modeling_outputs import ModelOutput
 
-from .models.modeling_utils import torch_float_or_long
 from .models.temporal_unet import TemporalUnet
 
 
 @dataclass
-class DiffusionPlannerOutput(ModelOutput):
+class DiffusionPlannerOutput(BaseOutput):
     sample: torch.Tensor
 
 
@@ -19,7 +18,6 @@ class DiffusionPlannerOutput(ModelOutput):
 class DiffusionPlanner:
     unet: TemporalUnet
 
-    @torch_float_or_long
     def __call__(
         self,
         observations: Union[torch.Tensor, List[torch.Tensor]],
@@ -51,7 +49,7 @@ class DiffusionPlanner:
         )
 
         # set initial observation
-        sample[:, :1, :observation_dim] = observations  # TODO: trajectory steps conditioning
+        sample[:, :1, :observation_dim] = observations[:, :1, :]  # TODO: multi trajectory step conditioning
 
         scheduler.set_timesteps(num_inference_steps)
 

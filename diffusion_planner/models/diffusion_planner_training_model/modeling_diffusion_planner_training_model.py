@@ -6,7 +6,6 @@ from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from torch import nn
 from transformers.modeling_outputs import ModelOutput
 
-from ..modeling_utils import torch_float_or_long
 from ..temporal_unet import TemporalUnet
 
 
@@ -22,7 +21,6 @@ class DiffusionPlannerTrainingModel(nn.Module):
         self.scheduler = scheduler
         self.unet = unet
 
-    @torch_float_or_long
     def forward(
         self,
         observations: torch.Tensor,
