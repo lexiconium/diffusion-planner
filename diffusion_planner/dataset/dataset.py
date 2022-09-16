@@ -37,6 +37,13 @@ class OfflineRLDataset(Dataset):
             }
 
         if len(data.keys()) != len(DATA_FIELD_NAMES):
+            # there could be some datasets that doesn't contain next_observations
+            if "observations" in data and "next_observations" not in data:
+                next_observations = data["observations"][1:].copy()
+                data = {k: v[:-1] for k, v in data.items()}
+                data["next_observations"] = next_observations
+
+        if len(data.keys()) != len(DATA_FIELD_NAMES):
             raise ValueError(f"Data field {set(DATA_FIELD_NAMES) - set(data.keys())} missing.")
 
         # group by each step
@@ -74,6 +81,7 @@ class OfflineRLDataset(Dataset):
         masks = np.zeros(end - begin)
 
         data = [np.stack(_data, axis=0) for _data in zip(*trajectory)] + [masks]
+
         return {name: _data for name, _data in zip(DATA_FIELD_NAMES + ("masks",), data)}
 
     @property
