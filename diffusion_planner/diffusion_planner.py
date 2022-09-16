@@ -1,6 +1,6 @@
 import inspect
 from dataclasses import dataclass
-from typing import List, Union
+from typing import List, Optional, Union
 
 import torch
 from diffusers import DDIMScheduler, DDPMScheduler, LMSDiscreteScheduler, PNDMScheduler
@@ -13,18 +13,24 @@ from .models.temporal_unet import TemporalUnet
 @dataclass
 class DiffusionPlannerOutput(BaseOutput):
     sample: torch.Tensor
+    diffusion_steps: Optional[torch.Tensor]
 
 
 @dataclass
 class DiffusionPlanner:
     unet: TemporalUnet
 
+    def __post_init__(self):
+        self.unet.eval()
+
+    @torch.no_grad()
     def __call__(
         self,
         observations: Union[torch.Tensor, List[torch.Tensor]],
         scheduler: Union[DDPMScheduler, DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
         horizon: int,
         num_inference_steps: int = 50,
+        return_diffusion_steps: bool = False,
         **kwargs
     ):
         def make_batched(_observations: Union[torch.Tensor, List[torch.Tensor]]):
@@ -59,20 +65,33 @@ class DiffusionPlanner:
         if isinstance(scheduler, LMSDiscreteScheduler):
             sample = sample * scheduler.sigmas[0]
 
-        # set initial observation
-        sample[:, :1, :observation_dim] = observations[:, :1, :]  # TODO: multi trajectory step conditioning
-
         step_kwargs = {
             kw: arg for kw, arg in kwargs.items()
             if kw in set(inspect.signature(scheduler.step).parameters.keys())
         }
 
+        diffusion_steps = None
+        if return_diffusion_steps:
+            diffusion_steps = []
+
         for i, t in enumerate(tqdm(scheduler.timesteps)):
             timesteps = torch.full((batch_size,), t)
+
+            # set initial observation
+            sample[:, :1, :observation_dim] = observations[:, :1, :]  # TODO: multi trajectory step conditioning
+
             noise_pred = self.unet(sample, timesteps).sample
+
             if isinstance(scheduler, LMSDiscreteScheduler):
                 sample = scheduler.step(noise_pred, i, sample, **step_kwargs).prev_sample
             else:
                 sample = scheduler.step(noise_pred, t, sample, **step_kwargs).prev_sample
 
-        return DiffusionPlannerOutput(sample=sample)
+            if return_diffusion_steps:
+                diffusion_steps.append(sample)
+
+        if return_diffusion_steps:
+            # make a new dimension right after batch: (batch, diffusion, trajectory, transition)
+            diffusion_steps = torch.stack(diffusion_steps, dim=1)
+
+        return DiffusionPlannerOutput(sample=sample, diffusion_steps=diffusion_steps)
