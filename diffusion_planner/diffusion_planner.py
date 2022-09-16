@@ -33,6 +33,13 @@ class DiffusionPlanner:
         return_diffusion_steps: bool = False,
         **kwargs
     ):
+        set_timesteps_kwargs = {
+            kw: arg for kw, arg in kwargs.items()
+            if kw in set(inspect.signature(scheduler.set_timesteps).parameters.keys())
+        }
+
+        scheduler.set_timesteps(num_inference_steps, **set_timesteps_kwargs)
+
         def make_batched(_observations: Union[torch.Tensor, List[torch.Tensor]]):
             num_dims = len(_observations.shape)
 
@@ -56,12 +63,6 @@ class DiffusionPlanner:
             device=observations.device
         )
 
-        set_timesteps_kwargs = {
-            kw: arg for kw, arg in kwargs.items()
-            if kw in set(inspect.signature(scheduler.set_timesteps).parameters.keys())
-        }
-        scheduler.set_timesteps(num_inference_steps, **set_timesteps_kwargs)
-
         if isinstance(scheduler, LMSDiscreteScheduler):
             sample = sample * scheduler.sigmas[0]
 
@@ -74,18 +75,20 @@ class DiffusionPlanner:
         if return_diffusion_steps:
             diffusion_steps = []
 
+        # set initial observation fixed
+        sample[:, :1, :observation_dim] = observations[:, :1, :]  # TODO: multi trajectory step conditioning
+
         for i, t in enumerate(tqdm(scheduler.timesteps)):
             timesteps = torch.full((batch_size,), t)
-
-            # set initial observation
-            sample[:, :1, :observation_dim] = observations[:, :1, :]  # TODO: multi trajectory step conditioning
-
             noise_pred = self.unet(sample, timesteps).sample
 
             if isinstance(scheduler, LMSDiscreteScheduler):
                 sample = scheduler.step(noise_pred, i, sample, **step_kwargs).prev_sample
             else:
                 sample = scheduler.step(noise_pred, t, sample, **step_kwargs).prev_sample
+
+            # set initial observation fixed
+            sample[:, :1, :observation_dim] = observations[:, :1, :]  # TODO: multi trajectory step conditioning
 
             if return_diffusion_steps:
                 diffusion_steps.append(sample)
