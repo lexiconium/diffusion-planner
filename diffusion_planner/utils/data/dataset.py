@@ -58,7 +58,10 @@ class DatasetForOfflineRL(Dataset, ABC):
                 self._trajectories.append(
                     Trajectory(
                         begin=begin,
-                        end=begin + np.random.randint(self.minimum, self.horizon + 1)
+                        end=begin + np.random.randint(
+                            self.minimum,
+                            min(self.horizon, episode_end - begin) + 1
+                        )
                     )
                 )
 
