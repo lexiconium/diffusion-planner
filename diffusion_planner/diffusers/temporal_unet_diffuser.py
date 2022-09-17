@@ -6,20 +6,20 @@ from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from torch import nn
 from transformers.modeling_outputs import ModelOutput
 
-from ..temporal_unet import TemporalUnet
+from ..models.temporal_unet import TemporalUnet
 
 
 @dataclass
-class DiffusionPlannerTrainingModelOutput(ModelOutput):
+class TemporalUnetDiffuserOutput(ModelOutput):
     loss: torch.Tensor
 
 
-class DiffusionPlannerTrainingModel(nn.Module):
-    def __init__(self, scheduler: DDPMScheduler, unet: TemporalUnet):
+class TemporalUnetDiffuserForDDPM(nn.Module):
+    def __init__(self, unet: TemporalUnet, scheduler: DDPMScheduler):
         super().__init__()
 
-        self.scheduler = scheduler
         self.unet = unet
+        self.scheduler = scheduler
 
     def forward(
         self,
@@ -51,4 +51,4 @@ class DiffusionPlannerTrainingModel(nn.Module):
 
         loss = torch.nn.functional.mse_loss(noise_pred, noise, reduction="none").mean([1, 2]).mean()
 
-        return DiffusionPlannerTrainingModelOutput(loss=loss)
+        return TemporalUnetDiffuserOutput(loss=loss)

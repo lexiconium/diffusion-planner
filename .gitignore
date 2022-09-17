@@ -3,6 +3,7 @@ __pycache__
 *.ipynb
 
 original
+outputs
 
 test*
 run*
