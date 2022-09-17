@@ -40,13 +40,10 @@ class StaticCollatorWithPadding:
                     dict_of_lists[name].append(_data[:self.pad_to])
             else:
                 len_to_pad = self.pad_to - length
-                if not len_to_pad:
-                    continue
-
                 for name, _data in data.items():
-                    dict_of_lists[name].append(
-                        pad(_data, axis=0, length=len_to_pad, value=name == "masks")
-                    )
+                    if len_to_pad:
+                        _data = pad(_data, axis=0, length=len_to_pad, value=name == "masks")
+                    dict_of_lists[name].append(_data)
 
         return {
             name: to_tensor(np.stack(data, axis=0))
@@ -66,14 +63,10 @@ class DynamicCollatorWithPadding:
 
         for idx, data in enumerate(batch):
             len_to_pad = pad_to - len(data["observations"])
-            if not len_to_pad:
-                continue
-
             for name, _data in data.items():
-                padded = pad(_data, axis=0, length=len_to_pad, value=name == "masks")
-                dict_of_lists[name].append(
-                    padded
-                )
+                if len_to_pad:
+                    _data = pad(_data, axis=0, length=len_to_pad, value=name == "masks")
+                dict_of_lists[name].append(_data)
 
         return {
             name: to_tensor(np.stack(data, axis=0))

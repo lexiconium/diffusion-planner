@@ -49,7 +49,7 @@ class DiffusionPlanner:
                 if num_dims == 2:
                     return _observations[:, None, :]
                 if num_dims == 3:
-                    return _observations
+                    return _observations[:, :1, :]  # TODO: multi trajectory step conditioning
 
                 raise ValueError(f"Unexpected observations shape {_observations.shape}.")
 
