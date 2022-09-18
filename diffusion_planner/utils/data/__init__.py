@@ -1,2 +1,2 @@
 from .collator import DynamicCollatorWithPadding, StaticCollatorWithPadding
-from .dataset import DatasetForOfflineRL, DatasetForOfflineRLFromHDF5
+from .dataset import DatasetForOfflineRL, DatasetForD4RL

@@ -95,7 +95,7 @@ class DatasetForOfflineRL(Dataset, ABC):
 
 
 @dataclass
-class DatasetForOfflineRLFromHDF5(DatasetForOfflineRL):
+class DatasetForD4RL(DatasetForOfflineRL):
     path_or_url: str
     horizon: int
     minimum: int
