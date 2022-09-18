@@ -37,6 +37,7 @@ class TemporalUnetDiffuserForDDPM(nn.Module):
             dtype=torch.long,
             device=transitions.device
         )
+        # TODO: add make batched
 
         observation_dim = observations.shape[-1]
         constraint = observations[:, 0]

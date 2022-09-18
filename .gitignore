@@ -1,9 +1,12 @@
 __pycache__
-.idea
-*.ipynb
 
+.DS_Store
+.idea
+
+diffusion_planner.egg-info
 original
 outputs
 
 test*
-run*
+dev*
+*.ipynb

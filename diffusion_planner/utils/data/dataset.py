@@ -13,6 +13,7 @@ from tqdm.auto import tqdm
 Trajectory = namedtuple("Trajectory", ["begin", "end"])
 
 
+# TODO: refactor & add trajectory slicing functionalities; per episode, etc.
 class DatasetForOfflineRL(Dataset, ABC):
     path_or_url: str
     horizon: int
