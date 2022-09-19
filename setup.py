@@ -10,6 +10,6 @@ install_requires = [
 setup(
     name="diffusion-planner",
     version="0.0",
-    packages=find_packages("diffusion-planner"),
+    packages=find_packages("diffusion_planner"),
     install_requires=install_requires
 )
