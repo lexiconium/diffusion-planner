@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass, field
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from diffusers.schedulers import DDPMScheduler
 from transformers import HfArgumentParser, Trainer, TrainerCallback, TrainerControl, TrainerState, TrainingArguments
@@ -9,6 +9,10 @@ from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 from diffusion_planner.diffusers import TemporalUnetDiffuserForDDPM
 from diffusion_planner.models import TemporalUnet
 from diffusion_planner.utils.data import DatasetForD4RL, DynamicCollatorWithPadding, TrajectoryType
+
+
+def list_field(default=None, metadata=None):
+    return field(default_factory=lambda: default, metadata=metadata)
 
 
 @dataclass
@@ -48,8 +52,8 @@ class DataArguments:
 
 @dataclass
 class ModelArguments:
-    block_out_channels: int = field(
-        default=(32, 64, 128, 256), metadata={"help": "Unet block out channels."}
+    block_out_channels: List[int] = list_field(
+        default=[32, 64, 128, 256], metadata={"help": "Unet block out channels."}
     )
     num_layers_per_block: int = field(default=2, metadata={"help": "Number of resnets per block."})
     norm_eps: float = field(
