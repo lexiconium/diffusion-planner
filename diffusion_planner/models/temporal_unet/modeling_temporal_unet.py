@@ -6,7 +6,7 @@ import torch
 from torch import nn
 from transformers.modeling_outputs import ModelOutput
 
-from ..modeling_utils import arguments_to_config
+from ..configuration_utils import ConfigUtilsMixin, arguments_to_config
 
 
 def get_timestep_embedding(
@@ -278,7 +278,7 @@ class TemporalUnetOutput(ModelOutput):
     sample: torch.Tensor
 
 
-class TemporalUnet(nn.Module):
+class TemporalUnet(nn.Module, ConfigUtilsMixin):
     @arguments_to_config
     def __init__(
         self,
@@ -360,7 +360,7 @@ class TemporalUnet(nn.Module):
         self,
         sample: torch.Tensor,
         timesteps: torch.Tensor,
-        context: Optional[torch.Tensor] = None,
+        context: Optional[torch.Tensor] = None,  # goal conditioning?
         flip_sin_to_cos: bool = False,
         downscale_freq_shift: float = 1.0
     ):

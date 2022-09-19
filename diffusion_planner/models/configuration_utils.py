@@ -1,6 +1,7 @@
 import functools
 import inspect
 import json
+import logging
 from collections import namedtuple
 
 
@@ -36,7 +37,20 @@ def arguments_to_config(init):
     return init_wrapper
 
 
-class ModelConfigUtilsMixin:
+class ConfigUtilsMixin:
     def save_config(self, path: str):
-        with open(path, "w") as config:
-            json.dump(self.config._asdict(), config, indent=4)
+        if hasattr(self, "config") and hasattr(self.config, "_asdict"):
+            with open(path, "w") as f:
+                json.dump(self.config._asdict(), f, indent=4)
+        else:
+            logging.info(
+                f"Config not saved either because class {self.__class__.__name__} doesn't have config or"
+                " config is not a NamedTuple."
+            )
+
+    @classmethod
+    def from_config(cls, path: str):
+        with open(path, "r") as f:
+            config = json.load(f)
+
+        return cls(**config)
