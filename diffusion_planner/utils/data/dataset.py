@@ -150,7 +150,7 @@ class DatasetForOfflineRL(Dataset, ABC):
 
         return dict(
             {key: value[begin:end] for key, value in self._data.items()},
-            masks=np.zeros(end - begin)
+            masks=np.zeros(end - begin, dtype=np.bool)
         )
 
     @property
