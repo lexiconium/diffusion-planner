@@ -86,7 +86,7 @@ def main():
         num_layers_per_block=model_args.num_layers_per_block,
         norm_eps=model_args.norm_eps,
         num_groups=model_args.num_groups,
-        dropout=ModelArguments.dropout
+        dropout=model_args.dropout
     )
 
     model = TemporalUnetDiffuserForDDPM(unet=unet, scheduler=scheduler)
