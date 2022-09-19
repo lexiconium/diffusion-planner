@@ -1,7 +1,8 @@
 import inspect
 from dataclasses import dataclass
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
+import numpy as np
 import torch
 from diffusers import DDIMScheduler, DDPMScheduler, LMSDiscreteScheduler, PNDMScheduler
 from diffusers.utils import BaseOutput
@@ -12,8 +13,8 @@ from .models.temporal_unet import TemporalUnet
 
 @dataclass
 class DiffusionPlannerOutput(BaseOutput):
-    sample: torch.Tensor
-    diffusion_steps: Optional[torch.Tensor]
+    sample: np.ndarray
+    diffusion_steps: Optional[np.ndarray]
 
 
 @dataclass
@@ -26,19 +27,26 @@ class DiffusionPlanner:
     @torch.no_grad()
     def __call__(
         self,
-        observations: Union[torch.Tensor, List[torch.Tensor]],
+        observations: Union[np.ndarray, List[np.ndarray]],
         scheduler: Union[DDPMScheduler, DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
         horizon: int,
         num_inference_steps: int = 50,
         return_diffusion_steps: bool = False,
         **kwargs
     ):
-        set_timesteps_kwargs = {
-            kw: arg for kw, arg in kwargs.items()
-            if kw in set(inspect.signature(scheduler.set_timesteps).parameters.keys())
-        }
+        def to_tensor_nested(data: Union[np.ndarray, List[np.ndarray]]):
+            def to_tensor(data: np.ndarray):
+                if data.dtype in {np.int8, np.int16, np.int32, np.int64, np.short, np.int, np.long, np.bool}:
+                    return torch.as_tensor(data, dtype=torch.long)
+                return torch.as_tensor(data, dtype=torch.float)
 
-        scheduler.set_timesteps(num_inference_steps, **set_timesteps_kwargs)
+            if isinstance(data, np.ndarray):
+                return to_tensor(data)
+            if isinstance(data, (List, Tuple)):
+                return to_tensor_nested(data)
+            raise ValueError("Numpy array or a list of numpy arrays are accepted.")
+
+        observations = to_tensor_nested(observations)
 
         def make_batched(_observations: Union[torch.Tensor, List[torch.Tensor]]):
             num_dims = len(_observations.shape)
@@ -62,6 +70,13 @@ class DiffusionPlanner:
             (batch_size, horizon, self.unet.config.in_channels),
             device=observations.device
         )
+
+        set_timesteps_kwargs = {
+            kw: arg for kw, arg in kwargs.items()
+            if kw in set(inspect.signature(scheduler.set_timesteps).parameters.keys())
+        }
+
+        scheduler.set_timesteps(num_inference_steps, **set_timesteps_kwargs)
 
         if isinstance(scheduler, LMSDiscreteScheduler):
             sample = sample * scheduler.sigmas[0]
@@ -97,4 +112,11 @@ class DiffusionPlanner:
             # make a new dimension right after batch: (batch, diffusion, trajectory, transition)
             diffusion_steps = torch.stack(diffusion_steps, dim=1)
 
-        return DiffusionPlannerOutput(sample=sample, diffusion_steps=diffusion_steps)
+        # convert to numpy array
+        sample = sample.cpu().numpy()
+        diffusion_steps = diffusion_steps.cpu().numpy()
+
+        return DiffusionPlannerOutput(
+            sample=sample,
+            diffusion_steps=diffusion_steps if return_diffusion_steps else None
+        )
