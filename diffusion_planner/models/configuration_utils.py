@@ -1,5 +1,6 @@
 import functools
 import inspect
+import json
 from collections import namedtuple
 
 
@@ -33,3 +34,9 @@ def arguments_to_config(init):
         setattr(self, "config", config)
 
     return init_wrapper
+
+
+class ModelConfigUtilsMixin:
+    def save_config(self, path: str):
+        with open(path, "w") as config:
+            json.dump(self.config._asdict(), config, indent=4)

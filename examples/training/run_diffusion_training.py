@@ -1,8 +1,10 @@
+import os
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
 from diffusers.schedulers import DDPMScheduler
-from transformers import HfArgumentParser, Trainer, TrainingArguments
+from transformers import HfArgumentParser, Trainer, TrainerCallback, TrainerControl, TrainerState, TrainingArguments
+from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 
 from diffusion_planner.diffusers import TemporalUnetDiffuserForDDPM
 from diffusion_planner.models import TemporalUnet
@@ -64,6 +66,13 @@ class ModelArguments:
     dropout: float = field(default=0.0, metadata={"help": "Dropout for resnet."})
 
 
+class SaveConfigCallback(TrainerCallback):
+    def on_save(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+        kwargs["model"].unet.save_config(
+            os.path.join(args.output_dir, f"{PREFIX_CHECKPOINT_DIR}-{state.global_step}", "model_config.json")
+        )
+
+
 def main():
     parser = HfArgumentParser([DataArguments, ModelArguments, TrainingArguments])
     data_args, model_args, training_args = parser.parse_args_into_dataclasses()
@@ -97,7 +106,8 @@ def main():
         data_collator=DynamicCollatorWithPadding(
             pad_to_multiple_of=data_args.pad_to_multiple_of
         ),
-        train_dataset=dataset
+        train_dataset=dataset,
+        callbacks=[SaveConfigCallback]
     )
 
     trainer.train()
