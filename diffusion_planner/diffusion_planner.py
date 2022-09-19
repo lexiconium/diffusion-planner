@@ -114,7 +114,8 @@ class DiffusionPlanner:
 
         # convert to numpy array
         sample = sample.cpu().numpy()
-        diffusion_steps = diffusion_steps.cpu().numpy()
+        if return_diffusion_steps:
+            diffusion_steps = diffusion_steps.cpu().numpy()
 
         return DiffusionPlannerOutput(
             sample=sample,
