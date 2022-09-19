@@ -86,7 +86,7 @@ def main():
         trajectory_type=data_args.trajectory_type,
         horizon=data_args.horizon,
         max_horizon=data_args.max_horizon,
-        min_horizon=DataArguments.min_horizon
+        min_horizon=data_args.min_horizon
     )
 
     transition_dim = dataset.observation_dim + dataset.action_dim
