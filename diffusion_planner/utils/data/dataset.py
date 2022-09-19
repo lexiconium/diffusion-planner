@@ -2,7 +2,8 @@ import os
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from dataclasses import dataclass, field
-from typing import Dict, Tuple
+from enum import Enum
+from typing import Dict, Optional, Tuple, Union
 
 import datasets
 import h5py
@@ -10,16 +11,51 @@ import numpy as np
 from torch.utils.data import Dataset
 from tqdm.auto import tqdm
 
+
+def get_episode_boundaries(terminals: Optional[np.ndarray], timeouts: Optional[np.ndarray]):
+    if terminals is None and isinstance(timeouts, np.ndarray):
+        terminals = np.zeros_like(timeouts)
+    elif isinstance(terminals, np.ndarray) and timeouts is None:
+        timeouts = np.zeros_like(terminals)
+
+    if terminals is None or timeouts is None:
+        raise ValueError("At least one of terminals or timeouts shouldn't be None.")
+
+    episode_boundaries = [0]
+
+    for idx, (terminals, timeouts) in enumerate(zip(terminals, timeouts)):
+        if terminals or timeouts:
+            episode_boundaries.append(idx + 1)
+
+    return episode_boundaries
+
+
 Trajectory = namedtuple("Trajectory", ["begin", "end"])
 
 
-# TODO: refactor & add trajectory slicing functionalities; per episode, etc.
+class TrajectoryType(Enum):
+    """
+    Fixed uses a fixed integer to slice an episode when forming trajectories.
+    Dynamic uses lower and upper bounds instead of a fixed integer.
+    """
+
+    FIXED = "fixed"
+    DYNAMIC = "dynamic"
+
+
+@dataclass
 class DatasetForOfflineRL(Dataset, ABC):
     path_or_url: str
-    horizon: int
-    minimum: int
+    trajectory_type: Union[TrajectoryType, str]
+    horizon: Optional[int]
+    max_horizon: Optional[int]
+    min_horizon: int
 
-    _fields: Tuple[str]
+    _fields: Tuple[str] = field(
+        default=("observations", "actions", "next_observations", "rewards", "terminals", "timeouts"),
+        init=False,
+        repr=False
+    )
 
     def __post_init__(self):
         # download in case not found in local path
@@ -44,33 +80,64 @@ class DatasetForOfflineRL(Dataset, ABC):
         self._action_dim = self._data["actions"].shape[-1]
 
         # get episode begin indices
-        episode_boundaries = [0]
-        for idx, (terminals, timeouts) in enumerate(zip(self._data["terminals"], self._data["timeouts"])):
-            if terminals or timeouts:
-                episode_boundaries.append(idx + 1)
+        self.episode_boundaries = get_episode_boundaries(
+            self._data["terminals"], self._data["timeouts"]
+        )
 
         # set trajectories
-        self._trajectories = []
-        for episode_begin, episode_end in zip(tqdm(episode_boundaries[:-1]), episode_boundaries[1:]):
-            if episode_end - episode_begin < self.minimum:
+        if isinstance(self.trajectory_type, str):
+            self.trajectory_type = TrajectoryType(self.trajectory_type)
+
+        if self.trajectory_type == TrajectoryType.FIXED:
+            self._trajectories = self._get_fixed_trajectories()
+        else:
+            self._trajectories = self._get_dynamic_trajectories()
+
+    def _get_fixed_trajectories(self):
+        if self.horizon is None:
+            return [
+                Trajectory(begin=begin, end=end)
+                for begin, end in zip(tqdm(self.episode_boundaries[:-1]), self.episode_boundaries[1:])
+            ]
+
+        trajectories = []
+
+        for episode_begin, episode_end in zip(tqdm(self.episode_boundaries[:-1]), self.episode_boundaries[1:]):
+            if episode_end - episode_begin < self.horizon:
                 continue
 
-            for begin in range(episode_begin, episode_end - self.minimum):
-                self._trajectories.append(
+            for begin in range(episode_begin, episode_end - self.horizon + 1):
+                trajectories.append(Trajectory(begin=begin, end=begin + self.horizon))
+
+        return trajectories
+
+    def _get_dynamic_trajectories(self):
+        trajectories = []
+
+        for episode_begin, episode_end in zip(tqdm(self.episode_boundaries[:-1]), self.episode_boundaries[1:]):
+            if episode_end - episode_begin < self.min_horizon:
+                continue
+
+            max_horizon = self.max_horizon or episode_end - episode_begin
+
+            for begin in range(episode_begin, episode_end - self.min_horizon + 1):
+                trajectories.append(
                     Trajectory(
                         begin=begin,
                         end=begin + np.random.randint(
-                            self.minimum,
-                            min(self.horizon, episode_end - begin) + 1
+                            self.min_horizon,
+                            min(max_horizon, episode_end - begin) + 1
                         )
                     )
                 )
+
+        return trajectories
 
     @abstractmethod
     def _load_data(self) -> Dict[str, np.ndarray]:
         """
         A data loading method to be implemented.
-        Returned observations and actions must be a shape of (number of steps, {observation, action} dimension)
+        Returned {observations, actions} must have the shape of (number of steps, {observation, action} dimension)
         """
 
         raise NotImplementedError
@@ -97,16 +164,6 @@ class DatasetForOfflineRL(Dataset, ABC):
 
 @dataclass
 class DatasetForD4RL(DatasetForOfflineRL):
-    path_or_url: str
-    horizon: int
-    minimum: int
-
-    _fields: Tuple[str] = field(
-        default=("observations", "actions", "next_observations", "rewards", "terminals", "timeouts"),
-        init=False,
-        repr=False
-    )
-
     def _load_data(self) -> Dict[str, np.ndarray]:
         def broadcast_if_needed(data: np.ndarray):
             num_dim = len(data.shape)
