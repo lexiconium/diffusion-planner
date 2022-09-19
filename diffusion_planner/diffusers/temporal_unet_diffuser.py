@@ -44,11 +44,11 @@ class TemporalUnetDiffuserForDDPM(nn.Module):
 
         noisy_transitions = self.scheduler.add_noise(transitions, noise, timesteps)
         noisy_transitions[..., 0, :observation_dim] = constraint
-        noisy_transitions.masked_fill_(masks[..., None], 0)
+        noisy_transitions.masked_fill_(masks[..., None].bool(), 0)
 
         noise_pred = self.unet(noisy_transitions, timesteps, context).sample
         noise_pred[..., 0, :observation_dim] = constraint
-        noise_pred.masked_fill_(masks[..., None], 0)
+        noise_pred.masked_fill_(masks[..., None].bool(), 0)
 
         loss = torch.nn.functional.mse_loss(noise_pred, noise, reduction="none").mean([1, 2]).mean()
 
