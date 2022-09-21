@@ -148,9 +148,23 @@ class DatasetForOfflineRL(Dataset, ABC):
     def __getitem__(self, idx: int):
         begin, end = self._trajectories[idx]
 
+        masks = np.zeros(end - begin, dtype=np.bool)
+
+        # initial transition should not be noised
+        masks[0] = True
+
+        trajectory_fixation = True
+        trajectory_fix_ratio = 0.3
+
+        if trajectory_fixation:
+            trajectory_len = end - begin
+            num_fix = int(trajectory_fix_ratio * trajectory_len)
+            fixed_idxs = np.random.choice(np.arange(1, trajectory_len), num_fix)
+            masks[fixed_idxs] = True
+
         return dict(
             {key: value[begin:end] for key, value in self._data.items()},
-            masks=np.zeros(end - begin, dtype=np.bool)
+            masks=masks
         )
 
     @property
