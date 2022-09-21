@@ -293,8 +293,11 @@ class TemporalUnet(nn.Module, ConfigUtilsMixin):
         super().__init__()
 
         self.conv_in = nn.Sequential(
-            nn.BatchNorm1d(in_channels),
-            nn.Conv1d(in_channels, block_out_channels[0], kernel_size=3, padding=1)
+            nn.Conv1d(in_channels, block_out_channels[0], kernel_size=3, padding=1),
+            nn.Mish(),
+            nn.GroupNorm(
+                num_groups=num_groups, num_channels=block_out_channels[0], eps=norm_eps
+            )
         )
 
         time_embedding_dim = block_out_channels[0]
