@@ -51,11 +51,11 @@ def main():
 
         for _sample in sample:
             observation, action = _sample[:observation_dim], _sample[observation_dim:]
-            env.step(action)
+            # env.step(action)
 
-            # env.step_with_observation(observation)
+            env.step_with_observation(observation)
 
-            # print(observation[0])
+            print(observation[0])
 
     env.close()
 

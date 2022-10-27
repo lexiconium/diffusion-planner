@@ -1,9 +1,10 @@
 from setuptools import find_packages, setup
 
 install_requires = [
-    "datasets==2.4.0",
-    "diffusers==0.3.0",
-    "transformers==4.21.3",
+    "accelerate==0.13.2",
+    "datasets",
+    "diffusers==0.5.1",
+    "transformers==4.23.1",
     "h5py"
 ]
 

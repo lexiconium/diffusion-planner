@@ -8,7 +8,7 @@ from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 
 from diffusion_planner.diffusers import TemporalUnetDiffuserForDDPM
 from diffusion_planner.models import TemporalUnet
-from diffusion_planner.utils.data import DatasetForD4RL, DynamicCollatorWithPadding, TrajectoryType
+from diffusion_planner.utils.data import DatasetForD4RL, DynamicDataCollatorWithPadding, TrajectoryType
 
 
 def list_field(default=None, metadata=None):
@@ -107,7 +107,7 @@ def main():
     trainer = Trainer(
         model,
         args=training_args,
-        data_collator=DynamicCollatorWithPadding(
+        data_collator=DynamicDataCollatorWithPadding(
             pad_to_multiple_of=data_args.pad_to_multiple_of
         ),
         train_dataset=dataset,

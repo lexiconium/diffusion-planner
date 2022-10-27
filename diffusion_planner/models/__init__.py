@@ -1,1 +1,1 @@
-from .temporal_unet import TemporalUnet
+from .trajectory_unet import TrajectoryUNet

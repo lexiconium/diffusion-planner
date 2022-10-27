@@ -1,123 +1,82 @@
 import inspect
-from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union
+from typing import Union
 
 import numpy as np
 import torch
-from diffusers import DDIMScheduler, DDPMScheduler, LMSDiscreteScheduler, PNDMScheduler
-from diffusers.utils import BaseOutput
+from diffusers import DDIMScheduler, LMSDiscreteScheduler, PNDMScheduler
 from tqdm.auto import tqdm
 
-from .models.temporal_unet import TemporalUnet
+from .models.trajectory_unet import TrajectoryUNet
 
 
-@dataclass
-class DiffusionPlannerOutput(BaseOutput):
-    sample: np.ndarray
-    diffusion_steps: Optional[np.ndarray]
-
-
-@dataclass
 class DiffusionPlanner:
-    unet: TemporalUnet
-
-    def __post_init__(self):
-        self.unet.eval()
+    def __init__(self, unet: TrajectoryUNet):
+        self.unet = unet
 
     @torch.no_grad()
     def __call__(
         self,
-        observations: Union[np.ndarray, List[np.ndarray]],
-        scheduler: Union[DDPMScheduler, DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
-        horizon: int,
+        observations: Union[np.ndarray, list[np.ndarray]],
+        noise_scheduler: Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
+        target_horizon: int,
         num_inference_steps: int = 50,
         return_diffusion_steps: bool = False,
         **kwargs
     ):
-        def to_tensor_nested(data: Union[np.ndarray, List[np.ndarray]]):
-            def to_tensor(data: np.ndarray):
-                if data.dtype in {np.int8, np.int16, np.int32, np.int64, np.short, np.int, np.long, np.bool}:
-                    return torch.as_tensor(data, dtype=torch.long)
-                return torch.as_tensor(data, dtype=torch.float)
+        # Check types
+        if isinstance(observations, np.ndarray):
+            observations = [observations]
+        if not isinstance(observations, (list, tuple)) or not isinstance(observations[0], np.ndarray):
+            raise ValueError("Observations must be a numpy array or a list of numpy arrays.")
 
-            if isinstance(data, np.ndarray):
-                return to_tensor(data)
-            if isinstance(data, (List, Tuple)):
-                return to_tensor_nested(data)
-            raise ValueError("Numpy array or a list of numpy arrays are accepted.")
-
-        observations = to_tensor_nested(observations)
-
-        def make_batched(_observations: Union[torch.Tensor, List[torch.Tensor]]):
-            num_dims = len(_observations.shape)
-
-            if isinstance(_observations, torch.Tensor):
-                if num_dims == 1:
-                    return _observations[None, None, :]
-                if num_dims == 2:
-                    return _observations[:, None, :]
-                if num_dims == 3:
-                    return _observations[:, :1, :]  # TODO: multi trajectory step conditioning
-
-                raise ValueError(f"Unexpected observations shape {_observations.shape}.")
-
-            return torch.cat([make_batched(_observation) for _observation in _observations], dim=0)
-
-        observations = make_batched(observations)
-        batch_size, trajectory_steps, observation_dim = observations.shape
-
-        sample = torch.randn(
-            (batch_size, horizon, self.unet.config.in_channels),
-            device=observations.device
+        # Make batched
+        observations = torch.stack(
+            [torch.as_tensor(observation, device=self.device) for observation in observations],
+            dim=0
         )
 
-        set_timesteps_kwargs = {
-            kw: arg for kw, arg in kwargs.items()
-            if kw in set(inspect.signature(scheduler.set_timesteps).parameters.keys())
-        }
+        batch_size, observation_dim = observations.shape
 
-        scheduler.set_timesteps(num_inference_steps, **set_timesteps_kwargs)
-
-        if isinstance(scheduler, LMSDiscreteScheduler):
-            sample = sample * scheduler.sigmas[0]
-
-        step_kwargs = {
-            kw: arg for kw, arg in kwargs.items()
-            if kw in set(inspect.signature(scheduler.step).parameters.keys())
-        }
-
-        diffusion_steps = None
-        if return_diffusion_steps:
-            diffusion_steps = []
-
-        # set initial observation fixed
-        sample[:, :1, :observation_dim] = observations[:, :1, :]  # TODO: multi trajectory step conditioning
-
-        for i, t in enumerate(tqdm(scheduler.timesteps)):
-            timesteps = torch.full((batch_size,), t)
-            noise_pred = self.unet(sample, timesteps).sample
-
-            if isinstance(scheduler, LMSDiscreteScheduler):
-                sample = scheduler.step(noise_pred, i, sample, **step_kwargs).prev_sample
-            else:
-                sample = scheduler.step(noise_pred, t, sample, **step_kwargs).prev_sample
-
-            # set initial observation fixed
-            sample[:, :1, :observation_dim] = observations[:, :1, :]  # TODO: multi trajectory step conditioning
-
-            if return_diffusion_steps:
-                diffusion_steps.append(sample)
-
-        if return_diffusion_steps:
-            # make a new dimension right after batch: (batch, diffusion, trajectory, transition)
-            diffusion_steps = torch.stack(diffusion_steps, dim=1)
-
-        # convert to numpy array
-        sample = sample.cpu().numpy()
-        if return_diffusion_steps:
-            diffusion_steps = diffusion_steps.cpu().numpy()
-
-        return DiffusionPlannerOutput(
-            sample=sample,
-            diffusion_steps=diffusion_steps if return_diffusion_steps else None
+        samples = torch.randn(
+            (batch_size, target_horizon, self.unet.conv_in.in_channels),
+            device=self.device
         )
+
+        noise_scheduler.set_timesteps(num_inference_steps)
+
+        diffusion_steps = noise_scheduler.timesteps.to(self.device)
+
+        # Scale the initial noise by the standard deviation required by the scheduler
+        samples = samples * noise_scheduler.init_noise_sigma
+
+        # Prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
+        extra_step_kwargs = {}
+
+        # eta (η) is only used with the DDIMScheduler, it will be ignored for other schedulers.
+        # eta corresponds to η in DDIM paper: https://arxiv.org/abs/2010.02502
+        # and should be between [0, 1]
+        accepts_eta = "eta" in set(inspect.signature(noise_scheduler.step).parameters.keys())
+        if accepts_eta and "eta" in kwargs:
+            extra_step_kwargs["eta"] = kwargs.pop("eta")
+
+        self.unet.to(self.device)
+
+        for i, t in enumerate(tqdm(diffusion_steps)):
+            # Fix initial observation
+            samples[:, 0, :observation_dim] = observations
+
+            samples = noise_scheduler.scale_model_input(samples, t)
+
+            # Predict noise residual
+            noise_predictions = self.unet(samples, t).samples
+
+            samples = noise_scheduler.step(noise_predictions, t, samples, **extra_step_kwargs).prev_sample
+
+        samples[:, 0, :observation_dim] = observations
+        samples = samples.cpu().numpy()
+
+        return samples
+
+    @property
+    def device(self) -> torch.device:
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")

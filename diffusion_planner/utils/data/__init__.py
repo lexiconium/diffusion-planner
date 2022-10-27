@@ -1,2 +1,2 @@
-from .collator import DynamicCollatorWithPadding, StaticCollatorWithPadding
+from .data_collator import DynamicDataCollatorWithPadding, StaticDataCollatorWithPadding
 from .dataset import DatasetForD4RL, DatasetForOfflineRL, TrajectoryType
