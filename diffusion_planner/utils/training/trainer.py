@@ -1,4 +1,3 @@
-import logging
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Tuple, Union
@@ -155,7 +154,7 @@ class Trainer:
 
                     if self.state.is_eval_step:
                         self.evaluate()
-                        logging.info(np.mean(losses[-self.state.evaluation_steps:]))
+                        print(np.mean(losses[-self.state.evaluation_steps:]))
 
                     if self.state.is_save_step:
                         self.save()
