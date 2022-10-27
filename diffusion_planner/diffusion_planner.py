@@ -1,5 +1,5 @@
 import inspect
-from typing import Union
+from typing import List, Union
 
 import numpy as np
 import torch
@@ -16,7 +16,7 @@ class DiffusionPlanner:
     @torch.no_grad()
     def __call__(
         self,
-        observations: Union[np.ndarray, list[np.ndarray]],
+        observations: Union[np.ndarray, List[np.ndarray]],
         noise_scheduler: Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
         target_horizon: int,
         num_inference_steps: int = 50,

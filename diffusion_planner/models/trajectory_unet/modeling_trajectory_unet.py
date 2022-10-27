@@ -1,5 +1,5 @@
 import math
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 from torch import nn
@@ -265,7 +265,7 @@ class TrajectoryUNet(nn.Module):
     def __init__(
         self,
         transition_dim: int,
-        intermediate_dims: tuple[int, ...],
+        intermediate_dims: Tuple[int, ...],
         kernel_size: int,
         num_groups: int,
         num_layers: int

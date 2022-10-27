@@ -1,7 +1,9 @@
+import logging
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Union
+from typing import Tuple, Union
 
+import numpy as np
 import torch
 from accelerate import Accelerator
 from diffusers.schedulers import DDIMScheduler, DDPMScheduler, PNDMScheduler
@@ -42,10 +44,6 @@ class TrainerState:
         self.step += 1
 
     @property
-    def is_update_step(self) -> bool:
-        return self.step % self.gradient_accumulation_steps == 0
-
-    @property
     def is_ema_update_step(self) -> bool:
         return self.step % self.ema_update_steps == 0
 
@@ -73,10 +71,10 @@ class Trainer:
         data_collator,
         train_dataset: Dataset,
         eval_dataset: Dataset,
-        optimizers: tuple[optim.Optimizer, optim.lr_scheduler.LambdaLR]
+        optimizers: Tuple[optim.Optimizer, optim.lr_scheduler.LambdaLR]
     ):
         self.model = model
-        self.ema_model = EMAModel(model)
+        self.ema_model = None
 
         self.noise_scheduler = noise_scheduler
 
@@ -123,12 +121,17 @@ class Trainer:
         self.model, self.optimizer, self.scheduler, data_loader = self.accelerator.prepare(
             self.model, self.optimizer, self.scheduler, data_loader
         )
+        self.ema_model = EMAModel(self.model)
 
         self.training_loop(data_loader)
 
-        return self.ema_model.unwrap()
+        model = self.ema_model.unwrap()
+
+        return model
 
     def training_loop(self, data_loader: DataLoader):
+        losses = []
+
         while not self.state.is_train_end:
             for data in tqdm(data_loader):
                 with self.accelerator.accumulate(self.model):
@@ -145,11 +148,14 @@ class Trainer:
 
                     self.optimizer.zero_grad()
 
+                    losses.append(loss.item())
+
                     if self.state.is_ema_update_step:
                         self.ema_model.update(self.model, beta=self.args.ema_beta)
 
                     if self.state.is_eval_step:
                         self.evaluate()
+                        logging.info(np.mean(losses[-self.state.evaluation_steps:]))
 
                     if self.state.is_save_step:
                         self.save()
