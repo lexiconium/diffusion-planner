@@ -124,7 +124,7 @@ class Trainer:
 
         self.training_loop(data_loader)
 
-        model = self.ema_model.unwrap()
+        model = self.ema_model.unwrap().cpu()
 
         return model
 
