@@ -210,7 +210,7 @@ class Trainer:
 
             losses.append(loss.item())
 
-            if i == 1000:
+            if i == 100:
                 break
 
         print(f"avg. eval loss: {np.mean(losses)}")
