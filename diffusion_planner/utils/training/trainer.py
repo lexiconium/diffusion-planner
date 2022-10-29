@@ -192,7 +192,7 @@ class Trainer:
             batch_size=self.args.eval_batch_size,
             collate_fn=self.data_collator,
             shuffle=False
-        )[:1000]
+        )
 
         data_loader = self.accelerator.prepare(data_loader)
 
@@ -201,7 +201,7 @@ class Trainer:
     def evaluation_loop(self, data_loader: DataLoader):
         losses = []
 
-        for data in tqdm(data_loader):
+        for i, data in tqdm(enumerate(data_loader, 1)):
             observations = data["observations"]
 
             samples = self.evaluation_step(observations)
@@ -209,6 +209,9 @@ class Trainer:
             loss = nn.functional.mse_loss(samples[..., :observations.shape[-1]], observations)
 
             losses.append(loss.item())
+
+            if i == 1000:
+                break
 
         print(f"avg. eval loss: {np.mean(losses)}")
 
