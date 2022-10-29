@@ -234,7 +234,7 @@ class Trainer:
         # Prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
         extra_step_kwargs = {}
 
-        for i, t in enumerate(tqdm(diffusion_steps)):
+        for i, t in enumerate(diffusion_steps):
             # Fix initial observation
             samples[:, 0, :observation_dim] = observations[:, 0, :]
 
