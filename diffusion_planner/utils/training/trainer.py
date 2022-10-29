@@ -18,6 +18,9 @@ class EMAModel:
         self.model = deepcopy(model)
         self.model.eval()
 
+    def __call__(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
+
     def update(self, model: nn.Module, beta: float = 0.99):
         for params, _params in zip(self.model.parameters(), model.parameters()):
             params.data = beta * params.data + (1 - beta) * _params.data
@@ -182,14 +185,66 @@ class Trainer:
 
         return loss
 
+    @torch.no_grad()
     def evaluate(self):
-        pass
+        data_loader = DataLoader(
+            self.eval_dataset,
+            batch_size=self.args.eval_batch_size,
+            collate_fn=self.data_collator,
+            shuffle=False
+        )[:1000]
 
-    def evaluation_loop(self):
-        pass
+        data_loader = self.accelerator.prepare(data_loader)
 
-    def evaluation_step(self):
-        pass
+        self.evaluation_loop(data_loader)
+
+    def evaluation_loop(self, data_loader: DataLoader):
+        losses = []
+
+        for data in tqdm(data_loader):
+            observations = data["observations"]
+
+            samples = self.evaluation_step(observations)
+
+            loss = nn.functional.mse_loss(samples[..., :observations.shape[-1]], observations)
+
+            losses.append(loss.item())
+
+        print(f"avg. eval loss: {np.mean(losses)}")
+
+    def evaluation_step(self, observations: torch.FloatTensor) -> torch.FloatTensor:
+        batch_size, target_horizon, observation_dim = observations.shape
+
+        samples = torch.randn(
+            (batch_size, target_horizon, self.model.conv_in.in_channels),
+            device=observations.device
+        )
+        noise_scheduler = PNDMScheduler()
+
+        noise_scheduler.set_timesteps(100)
+
+        diffusion_steps = noise_scheduler.timesteps.to(observations.device)
+
+        # Scale the initial noise by the standard deviation required by the scheduler
+        samples = samples * noise_scheduler.init_noise_sigma
+
+        # Prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
+        extra_step_kwargs = {}
+
+        for i, t in enumerate(tqdm(diffusion_steps)):
+            # Fix initial observation
+            samples[:, 0, :observation_dim] = observations
+
+            samples = noise_scheduler.scale_model_input(samples, t)
+
+            # Predict noise residual
+            noise_predictions = self.ema_model(samples, t).samples
+
+            samples = noise_scheduler.step(noise_predictions, t, samples, **extra_step_kwargs).prev_sample
+
+        samples[:, 0, :observation_dim] = observations
+
+        return samples
 
     def save(self):
         pass
