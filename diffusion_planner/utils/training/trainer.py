@@ -236,7 +236,7 @@ class Trainer:
 
         for i, t in enumerate(tqdm(diffusion_steps)):
             # Fix initial observation
-            samples[:, 0, :observation_dim] = observations
+            samples[:, 0, :observation_dim] = observations[:, 0, :]
 
             samples = noise_scheduler.scale_model_input(samples, t)
 
@@ -245,7 +245,7 @@ class Trainer:
 
             samples = noise_scheduler.step(noise_predictions, t, samples, **extra_step_kwargs).prev_sample
 
-        samples[:, 0, :observation_dim] = observations
+        samples[:, 0, :observation_dim] = observations[:, 0, :]
 
         return samples
 
