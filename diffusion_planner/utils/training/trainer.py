@@ -157,7 +157,7 @@ class Trainer:
 
                     if self.state.is_eval_step:
                         self.evaluate()
-                        print(np.mean(losses[-self.state.evaluation_steps:]))
+                        print(f"avg. train loss: {np.mean(losses[-self.state.evaluation_steps:])}")
 
                     if self.state.is_save_step:
                         self.save()
@@ -250,4 +250,4 @@ class Trainer:
         return samples
 
     def save(self):
-        pass
+        torch.save(self.ema_model.unwrap().cpu(), "model.pt")
