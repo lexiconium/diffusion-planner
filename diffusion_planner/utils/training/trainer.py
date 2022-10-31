@@ -134,8 +134,10 @@ class Trainer:
     def training_loop(self, data_loader: DataLoader):
         losses = []
 
-        while not self.state.is_train_end:
-            for data in tqdm(data_loader):
+        epoch = 1
+
+        for _ in tqdm(range(self.state.num_train_steps), desc=f"Epoch {epoch}"):
+            for data in data_loader:
                 with self.accelerator.accumulate(self.model):
                     trajectories = torch.cat([data["observations"], data["actions"]], dim=-1)
                     noise_masks = data["noise_masks"]
@@ -164,6 +166,8 @@ class Trainer:
 
                     if self.state.is_train_end:
                         break
+
+            epoch += 1
 
     def compute_loss(self, trajectories: torch.FloatTensor, noise_masks: torch.BoolTensor) -> torch.FloatTensor:
         noise = torch.randn_like(trajectories, device=trajectories.device)
@@ -199,9 +203,12 @@ class Trainer:
         self.evaluation_loop(data_loader)
 
     def evaluation_loop(self, data_loader: DataLoader):
+        """
+        TEST EVAL LOOP
+        """
         losses = []
 
-        for i, data in tqdm(enumerate(data_loader, 1)):
+        for i, data in enumerate(data_loader, 1):
             observations = data["observations"]
 
             samples = self.evaluation_step(observations)
