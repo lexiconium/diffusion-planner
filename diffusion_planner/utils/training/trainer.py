@@ -89,10 +89,7 @@ class Trainer:
 
         self.optimizer, self.scheduler = optimizers
 
-        self.accelerator = Accelerator(
-            mixed_precision="bf16",
-            gradient_accumulation_steps=args.gradient_accumulation_steps
-        )
+        self.accelerator = Accelerator(gradient_accumulation_steps=args.gradient_accumulation_steps)
 
         self.init_trainer_state()
 
