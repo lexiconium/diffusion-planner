@@ -250,4 +250,4 @@ class Trainer:
         return samples
 
     def save(self):
-        torch.save(self.ema_model.unwrap().cpu(), "model.pt")
+        torch.save(self.ema_model.unwrap(), "model.pt")
