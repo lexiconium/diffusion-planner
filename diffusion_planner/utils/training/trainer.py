@@ -136,8 +136,8 @@ class Trainer:
 
         epoch = 1
 
-        for _ in tqdm(range(self.state.num_train_steps), desc=f"Epoch {epoch}"):
-            for data in data_loader:
+        while not self.state.is_train_end:
+            for data in tqdm(data_loader, desc=f"Epoch {epoch}"):
                 with self.accelerator.accumulate(self.model):
                     trajectories = torch.cat([data["observations"], data["actions"]], dim=-1)
                     noise_masks = data["noise_masks"]
